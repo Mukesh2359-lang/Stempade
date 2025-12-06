@@ -1,0 +1,262 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { AlertCircle, Camera, Activity, Users, Wifi, WifiOff } from 'lucide-react';
+
+const CiviGuardDashboard = () => {
+  const [wsConnected, setWsConnected] = useState(false);
+  const [panicScore, setPanicScore] = useState(0);
+  const [density, setDensity] = useState(0);
+  const [alerts, setAlerts] = useState([]);
+  const [systemStatus, setSystemStatus] = useState('Initializing...');
+  const [heatmapData, setHeatmapData] = useState([]);
+  const wsRef = useRef(null);
+  const canvasRef = useRef(null);
+
+  // WebSocket connection
+  useEffect(() => {
+    // Simulated WebSocket connection for demo
+    // Replace with: wsRef.current = new WebSocket('ws://localhost:8000/ws');
+    
+    const simulateData = () => {
+      const score = Math.floor(Math.random() * 100);
+      setPanicScore(score);
+      setDensity(Math.floor(Math.random() * 150));
+      
+      // Generate heatmap data
+      const data = Array(10).fill(0).map(() => 
+        Array(10).fill(0).map(() => Math.random())
+      );
+      setHeatmapData(data);
+      
+      // Add alert if high risk
+      if (score > 70 && Math.random() > 0.7) {
+        const newAlert = {
+          id: Date.now(),
+          severity: score > 85 ? 'critical' : 'warning',
+          message: score > 85 ? 'CRITICAL: Stampede risk detected!' : 'WARNING: Abnormal crowd movement',
+          timestamp: new Date().toLocaleTimeString()
+        };
+        setAlerts(prev => [newAlert, ...prev].slice(0, 5));
+      }
+      
+      setSystemStatus('Active');
+    };
+
+    setWsConnected(true);
+    const interval = setInterval(simulateData, 2000);
+    
+    return () => {
+      clearInterval(interval);
+      if (wsRef.current) wsRef.current.close();
+    };
+  }, []);
+
+  // Draw heatmap
+  useEffect(() => {
+    if (!canvasRef.current || heatmapData.length === 0) return;
+    
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    const cellWidth = canvas.width / heatmapData[0].length;
+    const cellHeight = canvas.height / heatmapData.length;
+    
+    heatmapData.forEach((row, i) => {
+      row.forEach((value, j) => {
+        const intensity = Math.floor(value * 255);
+        ctx.fillStyle = `rgb(${intensity}, ${255 - intensity}, 0)`;
+        ctx.fillRect(j * cellWidth, i * cellHeight, cellWidth, cellHeight);
+      });
+    });
+  }, [heatmapData]);
+
+  const getRiskLevel = (score) => {
+    if (score < 30) return { text: 'LOW', color: 'text-green-500', bg: 'bg-green-500' };
+    if (score < 60) return { text: 'MODERATE', color: 'text-yellow-500', bg: 'bg-yellow-500' };
+    if (score < 80) return { text: 'HIGH', color: 'text-orange-500', bg: 'bg-orange-500' };
+    return { text: 'CRITICAL', color: 'text-red-500', bg: 'bg-red-500' };
+  };
+
+  const risk = getRiskLevel(panicScore);
+
+  return (
+    <div className="min-h-screen bg-gray-900 text-white p-4">
+      {/* Header */}
+      <div className="bg-gray-800 rounded-lg p-4 mb-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Camera className="w-8 h-8 text-blue-400" />
+          <h1 className="text-2xl font-bold">CiviGuard</h1>
+        </div>
+        <div className="flex items-center gap-6">
+          <div className="text-sm">
+            <span className="text-gray-400">Status: </span>
+            <span className="text-green-400 font-semibold">{systemStatus}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {wsConnected ? (
+              <>
+                <Wifi className="w-5 h-5 text-green-400" />
+                <span className="text-sm text-green-400">WS Connected</span>
+              </>
+            ) : (
+              <>
+                <WifiOff className="w-5 h-5 text-red-400" />
+                <span className="text-sm text-red-400">Disconnected</span>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Panic Score */}
+      <div className="bg-gradient-to-br from-gray-800 to-gray-700 rounded-lg p-8 mb-4 text-center">
+        <div className="flex items-center justify-center gap-3 mb-4">
+          <Activity className="w-6 h-6 text-blue-400" />
+          <h2 className="text-lg font-semibold text-gray-300">PANIC RISK SCORE</h2>
+        </div>
+        <div className="relative inline-block">
+          <div className={`text-8xl font-bold ${risk.color} mb-2`}>
+            {panicScore}
+          </div>
+          <div className="absolute -top-2 -right-12 text-3xl text-gray-500">/100</div>
+        </div>
+        <div className={`inline-block px-6 py-2 rounded-full text-xl font-bold mt-4 ${risk.bg} bg-opacity-20 ${risk.color}`}>
+          {risk.text} RISK
+        </div>
+        <div className="mt-6 flex justify-center gap-8 text-sm">
+          <div>
+            <Users className="w-5 h-5 inline mr-2 text-blue-400" />
+            <span className="text-gray-400">Crowd Density: </span>
+            <span className="font-semibold">{density} people</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Video Upload and Heatmap */}
+      <div className="grid grid-cols-2 gap-4 mb-4">
+        <div className="bg-gray-800 rounded-lg p-4">
+          <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+            <Camera className="w-5 h-5 text-blue-400" />
+            Video Input
+          </h3>
+          <div className="space-y-3">
+            <input
+              type="file"
+              accept="video/*"
+              className="block w-full text-sm text-gray-400
+                file:mr-4 file:py-2 file:px-4
+                file:rounded file:border-0
+                file:text-sm file:font-semibold
+                file:bg-blue-600 file:text-white
+                hover:file:bg-blue-700 file:cursor-pointer"
+            />
+            <div className="bg-gray-900 rounded p-4 text-sm text-gray-400">
+              <p className="mb-2">📹 Upload CCTV footage or crowd video</p>
+              <p className="text-xs">Supported: MP4, AVI, MOV</p>
+            </div>
+            <button className="w-full bg-green-600 hover:bg-green-700 text-white font-semibold py-3 rounded transition">
+              Start Analysis
+            </button>
+          </div>
+        </div>
+
+        <div className="bg-gray-800 rounded-lg p-4">
+          <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+            <Activity className="w-5 h-5 text-orange-400" />
+            Crowd Density Heatmap
+          </h3>
+          <div className="rounded overflow-hidden">
+            <canvas 
+              ref={canvasRef} 
+              width={400} 
+              height={300}
+              className="w-full bg-gray-900"
+            />
+          </div>
+          <div className="flex justify-between mt-2 text-xs text-gray-400">
+            <span className="flex items-center gap-1">
+              <span className="w-3 h-3 bg-green-500 rounded"></span> Low
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-3 h-3 bg-yellow-500 rounded"></span> Medium
+            </span>
+            <span className="flex items-center gap-1">
+              <span className="w-3 h-3 bg-red-500 rounded"></span> High
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Alerts and System Status */}
+      <div className="grid grid-cols-2 gap-4">
+        <div className="bg-gray-800 rounded-lg p-4">
+          <h3 className="text-lg font-semibold mb-3 flex items-center gap-2">
+            <AlertCircle className="w-5 h-5 text-red-400" />
+            Active Alerts
+          </h3>
+          <div className="space-y-2 max-h-60 overflow-y-auto">
+            {alerts.length === 0 ? (
+              <div className="text-gray-500 text-center py-8">No alerts detected</div>
+            ) : (
+              alerts.map(alert => (
+                <div 
+                  key={alert.id}
+                  className={`p-3 rounded ${
+                    alert.severity === 'critical' 
+                      ? 'bg-red-900 bg-opacity-30 border border-red-500' 
+                      : 'bg-yellow-900 bg-opacity-30 border border-yellow-500'
+                  }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1">
+                      <div className={`font-semibold ${
+                        alert.severity === 'critical' ? 'text-red-400' : 'text-yellow-400'
+                      }`}>
+                        {alert.message}
+                      </div>
+                      <div className="text-xs text-gray-400 mt-1">{alert.timestamp}</div>
+                    </div>
+                    <AlertCircle className={`w-5 h-5 ${
+                      alert.severity === 'critical' ? 'text-red-400' : 'text-yellow-400'
+                    }`} />
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className="bg-gray-800 rounded-lg p-4">
+          <h3 className="text-lg font-semibold mb-3">System Status</h3>
+          <div className="space-y-3">
+            <div className="flex justify-between items-center">
+              <span className="text-gray-400">AI Model</span>
+              <span className="text-green-400 font-semibold">Active</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-gray-400">Density Detection</span>
+              <span className="text-green-400 font-semibold">Running</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-gray-400">Motion Analysis</span>
+              <span className="text-green-400 font-semibold">Running</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-gray-400">FPS</span>
+              <span className="text-blue-400 font-semibold">10.5</span>
+            </div>
+            <div className="flex justify-between items-center">
+              <span className="text-gray-400">Latency</span>
+              <span className="text-blue-400 font-semibold">245ms</span>
+            </div>
+            <div className="mt-4 p-3 bg-blue-900 bg-opacity-20 rounded border border-blue-500">
+              <div className="text-sm text-blue-400">
+                <strong>Info:</strong> Connect backend WebSocket to ws://localhost:8000/ws for live data
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default CiviGuardDashboard;
